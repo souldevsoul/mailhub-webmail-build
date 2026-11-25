@@ -133,4 +133,29 @@ describe('RequireTotpGate', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('draws a QR code a phone camera can read: short payload, low error correction, large on screen', async () => {
+    const QRCode = (await import('qrcode')).default as unknown as { toDataURL: ReturnType<typeof vi.fn> };
+    QRCode.toDataURL.mockClear();
+    render(<RequireTotpGate />);
+    const img = await screen.findByTestId('totp-gate-qr');
+    const [payload, opts] = QRCode.toDataURL.mock.calls.at(-1)!;
+    expect(payload).toMatch(/^otpauth:\/\/totp\/.+\?secret=[A-Z2-7]{32}&issuer=/);
+    expect(payload).not.toMatch(/algorithm=|digits=|period=/);
+    expect(opts).toMatchObject({ errorCorrectionLevel: 'L' });
+    expect(Number(img.getAttribute('width'))).toBeGreaterThanOrEqual(200);
+    expect(img.className).not.toMatch(/sm:h-32|sm:w-32/);
+  });
+
+  it('the short QR payload names the same secret, issuer and account as the saved setup', async () => {
+    const { scanUrl } = await import('../require-totp-gate');
+    const OTPAuth = await import('otpauth');
+    const secret = new OTPAuth.Secret({ size: 20 });
+    const full = new OTPAuth.TOTP({ issuer: 'MailHub', label: 'a@pact.email', secret });
+    const parsed = OTPAuth.URI.parse(scanUrl(full)) as InstanceType<typeof OTPAuth.TOTP>;
+    expect(parsed.secret.base32).toBe(secret.base32);
+    expect(parsed.issuer).toBe('MailHub');
+    expect(parsed.label).toBe('a@pact.email');
+    expect(parsed.generate({ timestamp: 1e12 })).toBe(full.generate({ timestamp: 1e12 }));
+  });
 });

@@ -95,6 +95,16 @@ export async function serverClockOffset(): Promise<number | null> {
   }
 }
 
+/**
+ * The otpauth URL drawn as the QR code. The full URL repeats three settings every authenticator
+ * assumes anyway (SHA1, 6 digits, 30 s); leaving them out makes the code smaller and coarser, so a
+ * phone camera reads it off a laptop screen. The saved setup keeps the full URL.
+ */
+export function scanUrl(totp: OTPAuth.TOTP): string {
+  const label = encodeURIComponent(totp.issuer) + ":" + encodeURIComponent(totp.label);
+  return `otpauth://totp/${label}?secret=${totp.secret.base32}&issuer=${encodeURIComponent(totp.issuer)}`;
+}
+
 function forgetSetupSecret(username: string): void {
   const key = SETUP_KEY_PREFIX + (username || "account");
   setupSecrets.delete(key);
@@ -124,9 +134,9 @@ function TotpSetupScreen({ t, username, issuer, isSaving, enableTotp, onSignOut 
 
   useEffect(() => {
     let cancelled = false;
-    QRCode.toDataURL(otpUrl, { width: 200, margin: 1 }).then((url) => { if (!cancelled) setQr(url); }).catch(() => setQr(null));
+    QRCode.toDataURL(scanUrl(totp), { width: 416, margin: 2, errorCorrectionLevel: "L" }).then((url) => { if (!cancelled) setQr(url); }).catch(() => setQr(null));
     return () => { cancelled = true; };
-  }, [otpUrl]);
+  }, [totp]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -172,9 +182,9 @@ function TotpSetupScreen({ t, username, issuer, isSaving, enableTotp, onSignOut 
           <p className="text-sm text-foreground">{t("gate_step_scan")}</p>
           <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-center sm:gap-4">
             {qr ? (
-              <img src={qr} width={160} height={160} alt="" className="h-40 w-40 shrink-0 rounded-md border border-border bg-white p-2 sm:h-32 sm:w-32 sm:p-1.5" data-testid="totp-gate-qr" />
+              <img src={qr} width={208} height={208} alt="" className="h-52 w-52 shrink-0 rounded-md border border-border bg-white p-1" data-testid="totp-gate-qr" />
             ) : (
-              <div className="grid h-40 w-40 shrink-0 place-items-center sm:h-32 sm:w-32"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+              <div className="grid h-52 w-52 shrink-0 place-items-center"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
             )}
             <div className="w-full min-w-0 space-y-2">
               <p className="text-xs text-muted-foreground">{t("gate_step_manual")}</p>
